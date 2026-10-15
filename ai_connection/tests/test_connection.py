@@ -16,12 +16,28 @@ class TestConnection(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # ai.connection is an existing model: the fake definition extends it.
+        # Deleting it from the registry afterwards would remove the real model
+        # and break every module loaded after this one in the same run, so the
+        # cleanup restores the original bases instead.
+        model_cls = cls.registry[AiConnection._name]
+        original_bases = model_cls._base_classes__
         add_to_registry(cls.registry, AiConnection)
         cls.registry._setup_models__(cls.env.cr, [AiConnection._name])
         cls.registry.init_models(
             cls.env.cr, [AiConnection._name], {"models_to_check": True}
         )
-        cls.addClassCleanup(cls.registry.__delitem__, AiConnection._name)
+        cls.addClassCleanup(cls._restore_ai_connection, original_bases)
+
+    @classmethod
+    def _restore_ai_connection(cls, original_bases):
+        model_cls = cls.registry[AiConnection._name]
+        model_cls._base_classes__ = original_bases
+        for model_name in cls.registry.descendants(
+            [AiConnection._name], "_inherit", "_inherits"
+        ):
+            cls.registry[model_name]._setup_done__ = False
+        cls.registry._setup_models__(cls.env.cr, [AiConnection._name])
 
     def test_base_client_not_implemented(self):
         with self.assertRaises(NotImplementedError):
