@@ -50,8 +50,16 @@ class AiConnection(models.Model):
             messages=messages, tools=tools, record=record, max_iterations=max_iterations
         )
 
+    def _get_client(self, tools):
+        """Return the client of this connection's kind.
+
+        A single entry point, so other modules can wrap the client (for
+        example, to record the usage of every round trip).
+        """
+        return getattr(self, f"_get_client_{self.kind}")(tools)
+
     def _run_ai(self, messages, tools=None, record=None, max_iterations=None):
-        client = getattr(self, f"_get_client_{self.kind}")(tools)
+        client = self._get_client(tools)
         # Shallow copying messages to avoid edition of the messages
         messages = list(messages)
         if max_iterations is None:
